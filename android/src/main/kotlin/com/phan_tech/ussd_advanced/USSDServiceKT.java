@@ -5,7 +5,7 @@
  */
 package com.phan_tech.ussd_advanced;
 
-import android.accessibilityservice.AccessibilityService;
+import android.accessi  bilityservice.AccessibilityService;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -14,14 +14,9 @@ import android.os.Bundle;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.util.Log;
-
-
 import androidx.annotation.RequiresApi;
-
 import java.util.ArrayList;
 import java.util.List;
-
-// import io.flutter.Log;
 
 
 /**
@@ -50,17 +45,27 @@ public class USSDServiceKT extends AccessibilityService {
             event.getEventTime(), event.getText()));
         if (!ussd.isRunning()) {
             return;
+        }else{
+            // Log if ussd is running
+            Log.d("USSDServiceKT", "USSDController.INSTANCE running...")
         }
         String response = null;
+
+        // If the event has some text.
         if(!event.getText().isEmpty()) {
             List<CharSequence> res = event.getText();
+
+            // Remove SEND and CANCEL texts from the event
             res.remove("SEND");
             res.remove("CANCEL");
+
+            // store the event on the response variable
             response = String.join("\n", res );
         }
+
         if (LoginView(event) && notInputText(event)) {
             // first view or logView, do nothing, pass / FIRST MESSAGE
-             Log.d("USSDServiceKT", "Login view detected. Clicking on first button.");
+            Log.d("USSDServiceKT", "Login view detected. Clicking on first button.");
             clickOnButton(event, 0);
             ussd.stopRunning();
             USSDController.callbackInvoke.over(response != null ? response : "");
@@ -70,12 +75,11 @@ public class USSDServiceKT extends AccessibilityService {
             clickOnButton(event, 1);
             USSDController.callbackInvoke.over(response != null ? response : "");
         } else if (isUSSDWidget(event)) {
-//            Timber.d("catch a USSD widget/Window");
+
             Log.d("USSDServiceKT", "USSD Widget detected.");
             if (notInputText(event)) {
                 // not more input panels / LAST MESSAGE
                 // sent 'OK' button
-//                Timber.d("No inputText found & closing USSD process");
                 Log.d("USSDServiceKT", "No input field detected. Closing USSD.");
                 clickOnButton(event, 0);
                 ussd.stopRunning();
@@ -161,12 +165,33 @@ public class USSDServiceKT extends AccessibilityService {
      * @return boolean AccessibilityEvent is USSD
      */
     private boolean isUSSDWidget(AccessibilityEvent event) {
-        return (event.getClassName().equals("amigo.app.AmigoAlertDialog")
-                || event.getClassName().equals("android.app.AlertDialog")
-                || event.getClassName().equals("com.android.phone.oppo.settings.LocalAlertDialog")
-                || event.getClassName().equals("com.zte.mifavor.widget.AlertDialog")
-                || event.getClassName().equals("color.support.v7.app.AlertDialog"));
-    }
+    String className = event.getClassName().toString();
+    return (className.equals("amigo.app.AmigoAlertDialog")           // Generic Amigo (possibly Gionee)
+            || className.equals("com.android.phone.MMIDialogActivity")
+             || className.equals("com.android.phone.oppo.settings.LocalAlertDialog")
+            || className.equals("android.app.AlertDialog")          // Standard Android dialog
+            || className.equals("com.android.phone.DialerDialog")   // AOSP telephony dialog
+            || className.equals("com.oppo.dialer.AlertDialog")      // Oppo (ColorOS) dialer dialog
+            || className.equals("com.samsung.android.dialer.DialerDialog") // Samsung (One UI)
+            || className.equals("com.miui.dialer.AlertDialog")      // Xiaomi (MIUI)
+            || className.equals("com.vivo.dialer.AlertDialog")       // Vivo (Funtouch                                                                                                                                                                                                                                             OS)
+            || className.equals("com.huawei.dialer.AlertDialog")    // Huawei (EMUI/HarmonyOS)
+            || className.equals("com.google.android.dialer.DialerDialog") // Google (Pixel)
+            || className.equals("com.oneplus.dialer.AlertDialog")   // OnePlus (OxygenOS)
+            || className.equals("com.realme.dialer.AlertDialog")    // Realme (Realme UI)
+            || className.equals("com.motorola.dialer.AlertDialog")  // Motorola
+            || className.equals("com.zte.mifavor.widget.AlertDialog") // ZTE (MiFavor)
+            || className.equals("color.support.v7.app.AlertDialog") // ColorOS support library
+    );
+}
+    // private boolean isUSSDWidget(AccessibilityEvent event) {
+    //     return (event.getClassName().equals("amigo.app.AmigoAlertDialog")
+    //             || event.getClassName().equals("android.app.AlertDialog")
+    //             || event.getClassName().equals("com.android.phone")
+    //             || event.getClassName().equals("com.android.phone.oppo.settings.LocalAlertDialog")
+    //             || event.getClassName().equals("com.zte.mifavor.widget.AlertDialog")
+    //             || event.getClassName().equals("color.support.v7.app.AlertDialog"));
+    // }
 
     /**
      * The View has a login message into USSD Widget
@@ -234,7 +259,7 @@ public class USSDServiceKT extends AccessibilityService {
      */
     @Override
     public void onInterrupt() {
-//        Timber.d( "onInterrupt");
+        Log.d( "onInterrupt");
     }
 
     /**
@@ -243,6 +268,6 @@ public class USSDServiceKT extends AccessibilityService {
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
-//        Timber.d("onServiceConnected");
+        Log.d("onServiceConnected");
     }
 }
