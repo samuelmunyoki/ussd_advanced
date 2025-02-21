@@ -35,6 +35,8 @@ class UssdAdvancedPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Basic
   ///
   /// This local reference serves to register the plugin with the Flutter Engine and unregister it
   /// when the Flutter Engine is detached from the Activity
+  
+  // Initialize some values later
   private lateinit var channel : MethodChannel
   private var context: Context? = null
   private var activity: Activity? = null
@@ -44,8 +46,9 @@ class UssdAdvancedPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Basic
 
 
   private lateinit var basicMessageChannel: BasicMessageChannel<String>
+  
 
-
+  // Setting up the Chanhhels for communication
   override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
     channel = MethodChannel(flutterPluginBinding.binaryMessenger, "method.com.phan_tech/ussd_advanced")
     channel.setMethodCallHandler(this)
@@ -97,10 +100,13 @@ class UssdAdvancedPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Basic
     var code:String? = ""
 
     if(call.method == "sendUssd" ||call.method == "sendAdvancedUssd" ||call.method == "multisessionUssd"){
+
+      //Which simcard to use is subscriptionId?? 
       val subscriptionIdInteger = call.argument<Int>("subscriptionId")
         ?: throw RequestParamsException(
           "Incorrect parameter type: `subscriptionId` must be an int"
         )
+
       subscriptionId = subscriptionIdInteger
       if (subscriptionId < -1 ) {
         throw RequestParamsException(
@@ -119,24 +125,35 @@ class UssdAdvancedPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Basic
     }
 
     when (call.method) {
+      // Checks if the needed permissions are granted. 
+      // Returns bool
       "hasPermissions" -> {
         result.success(hasPermissions())
 
       }
+
+      //  Request permissions that are required and not granted
       "requestPermissions" -> {
           requestPermissions()
         result.success(null)
-
       }
+
+      //Sending a normal USSD 
       "sendUssd" -> {
         result.success(defaultUssdService(code!!, subscriptionId))
 
       }
-      "sendAdvancedUssd" -> {
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O){
-          val res = singleSessionUssd(code!!, subscriptionId)
-          if(res != null){
 
+      // Send Single-Session In backgraound
+      "sendAdvancedUssd" -> {
+        // For android  Android Oreo (API level 26) or higher
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O){
+
+          // run single session USSd and use overriden callback to send the response to res not the UI
+          val res = singleSessionUssd(code!!, subscriptionId)
+
+          // If the res is not null
+          if(res != null){
             res.exceptionally { e: Throwable? ->
               if (e is RequestExecutionException) {
                 result.error(
@@ -155,6 +172,8 @@ class UssdAdvancedPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Basic
           result.success(defaultUssdService(code!!, subscriptionId))
         }
       }
+
+      // Multisession USSD
       "multisessionUssd" -> {
 
         // check permissions
@@ -190,20 +209,26 @@ class UssdAdvancedPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Basic
                 )
     }
 
+
+    // Request the permissions that are not granted. 
     private fun requestPermissions(){
+
+      // Launce the accessibility screen if Accessibilty service is not enabled.
         if(!isAccessibilityServiceEnabled(this.context!!)) {
             val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
             this.context!!.startActivity(intent)
 
         }
-
+        // Check the other permissions if they are enabled.
+        //CALL_PHONE - Permission check
         if (ContextCompat.checkSelfPermission(context!!, android.Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
             if (!ActivityCompat.shouldShowRequestPermissionRationale(activity!!, android.Manifest.permission.CALL_PHONE)) {
                 ActivityCompat.requestPermissions(activity!!, arrayOf(android.Manifest.permission.CALL_PHONE), 2)
             }
         }
 
+        // READ_PHONE_STATE - Permission check
         if (ContextCompat.checkSelfPermission(this.context!!, android.Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
             if (!ActivityCompat.shouldShowRequestPermissionRationale(activity!!, android.Manifest.permission.READ_PHONE_STATE)) {
                 ActivityCompat.requestPermissions(activity!!, arrayOf(android.Manifest.permission.READ_PHONE_STATE), 2)
@@ -233,7 +258,7 @@ class UssdAdvancedPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Basic
 
 
 
-  // for android 8+
+  // for android 8+ ( Android Oreo (API level 26))
   private fun singleSessionUssd(ussdCode:String, subscriptionId:Int) : CompletableFuture<String>?{
     // use defaulft sim
     val _useDefault: Boolean = subscriptionId == -1
@@ -365,12 +390,16 @@ class UssdAdvancedPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Basic
 
   // multiple for all
   private fun defaultUssdService(ussdCode:String, subscriptionId:Int){
+
+    // Check if permissions are granted
     if (ContextCompat.checkSelfPermission(this.context!!, android.Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
       if (ActivityCompat.shouldShowRequestPermissionRationale(activity!!, android.Manifest.permission.CALL_PHONE)) {
       } else {
         ActivityCompat.requestPermissions(activity!!, arrayOf(android.Manifest.permission.CALL_PHONE), 2)
       }
     }
+
+
     try {
       // use defaulft sim
       val _useDefault: Boolean = subscriptionId == -1
