@@ -5,7 +5,7 @@
  */
 package com.phan_tech.ussd_advanced;
 
-import android.accessi  bilityservice.AccessibilityService;
+import android.accessibilityservice.AccessibilityService;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
