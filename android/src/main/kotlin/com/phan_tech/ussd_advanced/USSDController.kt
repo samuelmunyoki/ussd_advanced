@@ -29,8 +29,9 @@ import androidx.annotation.RequiresApi
  */
 
 val mapM = hashMapOf(
-    "KEY_LOGIN" to listOf("espere", "waiting", "loading", "esperando"),
-    "KEY_ERROR" to listOf("problema", "problem", "error", "null")
+    // Modified to account for english 
+    "KEY_LOGIN" to listOf("running", "waiting", "loading", "esperando", "processing", "please wait", "in progress", "sending request", "running", "dialing", "ussd running", "request sent", "connecting", "executing", "checking", "sending ussd"),
+    "KEY_ERROR" to listOf("timeout", "problem", "error", "null")
 )
 
 @SuppressLint("StaticFieldLeak")
@@ -109,6 +110,7 @@ object USSDController : USSDInterface, USSDApi {
      */
     @RequiresApi(Build.VERSION_CODES.M)
     @SuppressLint("MissingPermission")
+    // Checks if accessibility is enabled and dials a ussd
     override fun callUSSDInvoke(
         context: Context, ussdPhoneNumber: String, simSlot: Int,
         callbackInvoke: CallbackInvoke
