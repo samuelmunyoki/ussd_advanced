@@ -102,7 +102,7 @@ public class USSDServiceKT extends AccessibilityService {
         clickOnButton(event, 1);
     }
     public static void send2(String text, AccessibilityEvent ev) {
-        Log.d("USSDServiceKT", "Cancelling USSD session.");
+        Log.d("USSDServiceKT", "Sending USSD response: " + text);
         setTextIntoField(ev, text);
         clickOnButton(ev, 1);
     }
@@ -111,7 +111,7 @@ public class USSDServiceKT extends AccessibilityService {
      * Dismiss dialog by using first button from USSD Dialog
      */
     public static void cancel() {
-        Log.d("USSDServiceKT", "Clicking on button at index: " + index);
+        Log.d("USSDServiceKT", "Clicking cancel... ");
         clickOnButton(event, 0);
     }
     public static void cancel2(AccessibilityEvent ev) {
