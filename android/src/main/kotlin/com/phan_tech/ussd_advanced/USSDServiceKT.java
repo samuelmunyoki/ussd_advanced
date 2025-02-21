@@ -119,6 +119,7 @@ public class USSDServiceKT extends AccessibilityService {
         clickOnButton(event, 0);
     }
     public static void cancel2(AccessibilityEvent ev) {
+         Log.d("USSDServiceKT", "Clicking cancel... ");
         clickOnButton(ev, 0);
     }
 
@@ -259,7 +260,7 @@ public class USSDServiceKT extends AccessibilityService {
      */
     @Override
     public void onInterrupt() {
-        Log.d( "onInterrupt");
+        Log.d("USSDServiceKT",  "onInterrupt");
     }
 
     /**
@@ -268,6 +269,6 @@ public class USSDServiceKT extends AccessibilityService {
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
-        Log.d("onServiceConnected");
+        Log.d("USSDServiceKT", "onServiceConnected");
     }
 }
