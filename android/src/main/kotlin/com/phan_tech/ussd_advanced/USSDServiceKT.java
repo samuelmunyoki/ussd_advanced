@@ -47,7 +47,7 @@ public class USSDServiceKT extends AccessibilityService {
             return;
         }else{
             // Log if ussd is running
-            Log.d("USSDServiceKT", "USSDController.INSTANCE running...")
+            Log.d("USSDServiceKT", "USSDController.INSTANCE running...");
         }
         String response = null;
 
