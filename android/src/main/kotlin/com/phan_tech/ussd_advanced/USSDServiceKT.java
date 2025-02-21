@@ -13,6 +13,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.util.Log;
+
 
 import androidx.annotation.RequiresApi;
 
@@ -42,10 +44,10 @@ public class USSDServiceKT extends AccessibilityService {
     public void onAccessibilityEvent(AccessibilityEvent event) {
         USSDServiceKT.event = event;
         USSDController ussd = USSDController.INSTANCE;
-//        Timber.d(String.format(
-//                "onAccessibilityEvent: [type] %s [class] %s [package] %s [time] %s [text] %s",
-//                event.getEventType(), event.getClassName(), event.getPackageName(),
-//                event.getEventTime(), event.getText()));
+        Log.d("USSDServiceKT", String.format(
+            "Event Received: [type] %s [class] %s [package] %s [time] %s [text] %s",
+            event.getEventType(), event.getClassName(), event.getPackageName(),
+            event.getEventTime(), event.getText()));
         if (!ussd.isRunning()) {
             return;
         }
@@ -58,24 +60,29 @@ public class USSDServiceKT extends AccessibilityService {
         }
         if (LoginView(event) && notInputText(event)) {
             // first view or logView, do nothing, pass / FIRST MESSAGE
+             Log.d("USSDServiceKT", "Login view detected. Clicking on first button.");
             clickOnButton(event, 0);
             ussd.stopRunning();
             USSDController.callbackInvoke.over(response != null ? response : "");
         } else if (problemView(event) || LoginView(event)) {
             // deal down
+            Log.d("USSDServiceKT", "Problem view detected. Clicking on second button.");
             clickOnButton(event, 1);
             USSDController.callbackInvoke.over(response != null ? response : "");
         } else if (isUSSDWidget(event)) {
 //            Timber.d("catch a USSD widget/Window");
+            Log.d("USSDServiceKT", "USSD Widget detected.");
             if (notInputText(event)) {
                 // not more input panels / LAST MESSAGE
                 // sent 'OK' button
 //                Timber.d("No inputText found & closing USSD process");
+                Log.d("USSDServiceKT", "No input field detected. Closing USSD.");
                 clickOnButton(event, 0);
                 ussd.stopRunning();
                 USSDController.callbackInvoke.over(response != null ? response : "");
             } else {
                 // sent option 1
+                Log.d("USSDServiceKT", "Input field detected. Processing user input.");
                 if (ussd.getSendType() == true)
                     ussd.getCallbackMessage().invoke(event);
                 else USSDController.callbackInvoke.responseInvoke(event);
@@ -90,10 +97,12 @@ public class USSDServiceKT extends AccessibilityService {
      * @param text any string
      */
     public static void send(String text) {
+        Log.d("USSDServiceKT", "Sending USSD response: " + text);
         setTextIntoField(event, text);
         clickOnButton(event, 1);
     }
     public static void send2(String text, AccessibilityEvent ev) {
+        Log.d("USSDServiceKT", "Cancelling USSD session.");
         setTextIntoField(ev, text);
         clickOnButton(ev, 1);
     }
@@ -102,6 +111,7 @@ public class USSDServiceKT extends AccessibilityService {
      * Dismiss dialog by using first button from USSD Dialog
      */
     public static void cancel() {
+        Log.d("USSDServiceKT", "Clicking on button at index: " + index);
         clickOnButton(event, 0);
     }
     public static void cancel2(AccessibilityEvent ev) {
