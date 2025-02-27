@@ -130,22 +130,58 @@ public class USSDServiceKT extends AccessibilityService {
      * @param data  Any String
      */
     private static void setTextIntoField(AccessibilityEvent event, String data) {
+        boolean textSet = false;
         Bundle arguments = new Bundle();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, data);
-        }
+        arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, data);
+        
         for (AccessibilityNodeInfo leaf : getLeaves(event)) {
-            if (leaf.getClassName().equals("android.widget.EditText")
-                    && !leaf.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)) {
-                ClipboardManager clipboardManager = ((ClipboardManager)  USSDController
-                        .INSTANCE.getContext().getSystemService(Context.CLIPBOARD_SERVICE));
-                if (clipboardManager != null) {
-                    clipboardManager.setPrimaryClip(ClipData.newPlainText("text", data));
+            if (leaf.getClassName().toString().equals("android.widget.EditText")) {
+                // Try direct text setting first
+                if (leaf.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)) {
+                    textSet = true;
+                    Log.d("USSDServiceKT", "Text set using ACTION_SET_TEXT");
+                    break;
                 }
-                leaf.performAction(AccessibilityNodeInfo.ACTION_PASTE);
+                
+                // If direct setting failed, try clipboard
+                try {
+                    ClipboardManager clipboardManager = ((ClipboardManager) USSDController
+                            .INSTANCE.getContext().getSystemService(Context.CLIPBOARD_SERVICE));
+                    if (clipboardManager != null) {
+                        clipboardManager.setPrimaryClip(ClipData.newPlainText("text", data));
+                        if (leaf.performAction(AccessibilityNodeInfo.ACTION_PASTE)) {
+                            textSet = true;
+                            Log.d("USSDServiceKT", "Text set using clipboard paste");
+                            break;
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e("USSDServiceKT", "Error setting text via clipboard: " + e.getMessage());
+                }
             }
         }
+        
+        if (!textSet) {
+            Log.e("USSDServiceKT", "Failed to set text in USSD dialog");
+        }
     }
+    // private static void setTextIntoField(AccessibilityEvent event, String data) {
+    //     Bundle arguments = new Bundle();
+    //     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+    //         arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, data);
+    //     }
+    //     for (AccessibilityNodeInfo leaf : getLeaves(event)) {
+    //         if (leaf.getClassName().equals("android.widget.EditText")
+    //                 && !leaf.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)) {
+    //             ClipboardManager clipboardManager = ((ClipboardManager)  USSDController
+    //                     .INSTANCE.getContext().getSystemService(Context.CLIPBOARD_SERVICE));
+    //             if (clipboardManager != null) {
+    //                 clipboardManager.setPrimaryClip(ClipData.newPlainText("text", data));
+    //             }
+    //             leaf.performAction(AccessibilityNodeInfo.ACTION_PASTE);
+    //         }
+    //     }
+    // }
 
     /**
      * Method evaluate if USSD widget has input text
@@ -225,17 +261,37 @@ public class USSDServiceKT extends AccessibilityService {
      * @param index button's index
      */
     protected static void clickOnButton(AccessibilityEvent event, int index) {
-        int count = -1;
+        List<AccessibilityNodeInfo> clickableNodes = new ArrayList<>();
+        
+        // First collect all clickable nodes
         for (AccessibilityNodeInfo leaf : getLeaves(event)) {
-            count++;
-            if (count == index) {
-                leaf.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-            }
-            if (leaf.getClassName().toString().toLowerCase().contains("button")) {
-
+            if (leaf.isClickable() && 
+                (leaf.getClassName().toString().toLowerCase().contains("button") || 
+                leaf.getActionList().contains(AccessibilityNodeInfo.ACTION_CLICK))) {
+                clickableNodes.add(leaf);
             }
         }
+        
+        // Make sure we have enough buttons and the index is valid
+        if (clickableNodes.size() > index) {
+            clickableNodes.get(index).performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            Log.d("USSDServiceKT", "Clicked on button at index: " + index);
+        } else {
+            Log.e("USSDServiceKT", "Button at index " + index + " not found. Total buttons: " + clickableNodes.size());
+        }
     }
+    // protected static void clickOnButton(AccessibilityEvent event, int index) {
+    //     int count = -1;
+    //     for (AccessibilityNodeInfo leaf : getLeaves(event)) {
+    //         count++;
+    //         if (count == index) {
+    //             leaf.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+    //         }
+    //         if (leaf.getClassName().toString().toLowerCase().contains("button")) {
+
+    //         }
+    //     }
+    // }
 
     private static List<AccessibilityNodeInfo> getLeaves(AccessibilityEvent event) {
         List<AccessibilityNodeInfo> leaves = new ArrayList<>();
