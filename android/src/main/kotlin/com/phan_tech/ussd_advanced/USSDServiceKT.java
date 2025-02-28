@@ -1,8 +1,3 @@
-/*
- * Copyright (c) 2020. BoostTag E.I.R.L. Romell D.Z.
- * All rights reserved
- * porfile.romellfudi.com
- */
 package com.phan_tech.ussd_advanced;
 
 import android.accessibilityservice.AccessibilityService;
@@ -18,24 +13,11 @@ import androidx.annotation.RequiresApi;
 import java.util.ArrayList;
 import java.util.List;
 
-
-/**
- * AccessibilityService object for ussd dialogs on Android mobile Telcoms
- *
- * @author Romell Dominguez
- * @version 1.1.c 27/09/2018
- * @since 1.0.a
- */
 public class USSDServiceKT extends AccessibilityService {
 
     private static AccessibilityEvent event;
     private static final String TAG = "USSDServiceKT";
 
-    /**
-     * Catch widget by Accessibility, when is showing at mobile display
-     *
-     * @param event AccessibilityEvent
-     */
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         USSDServiceKT.event = event;
@@ -79,39 +61,367 @@ public class USSDServiceKT extends AccessibilityService {
         Log.d(TAG, "Hierarchy dump:");
         dumpNodeHierarchy(event.getSource(), 0);
 
-        if (LoginView(event) && notInputText(event)) {
-            // first view or logView, do nothing, pass / FIRST MESSAGE
-            Log.d(TAG, "Login view detected. Clicking on first button.");
-            clickOnButton(event, 0);
-            ussd.stopRunning();
-            USSDController.callbackInvoke.over(response != null ? response : "");
-        } else if (problemView(event) || LoginView(event)) {
-            // deal down
-            Log.d(TAG, "Problem view detected. Clicking on second button.");
-            clickOnButton(event, 1);
-            USSDController.callbackInvoke.over(response != null ? response : "");
-        } else if (isUSSDWidget(event)) {
+        // Enhanced detection algorithm
+        if (isUSSDWidget(event)) {
             Log.d(TAG, "USSD Widget detected.");
-            if (notInputText(event)) {
-                // not more input panels / LAST MESSAGE
-                // sent 'OK' button
-                Log.d(TAG, "No input field detected. Closing USSD.");
-                clickOnButton(event, 0);
-                ussd.stopRunning();
-                USSDController.callbackInvoke.over(response != null ? response : "");
+            
+            // Check for input field more thoroughly
+            boolean hasInputField = !enhancedNotInputText(event);
+            Log.d(TAG, "Has input field: " + hasInputField);
+            
+            if (!hasInputField) {
+                // no input fields - this is likely a final message or menu-only screen
+                Log.d(TAG, "No input field detected. Processing as menu or final message.");
+                if (LoginView(event)) {
+                    // Login view or initial view
+                    Log.d(TAG, "Login view detected. Clicking on first button.");
+                    enhancedClickOnButton(event, 0);
+                    ussd.stopRunning();
+                    USSDController.callbackInvoke.over(response != null ? response : "");
+                } else if (problemView(event)) {
+                    // Error view
+                    Log.d(TAG, "Problem view detected. Clicking on second button.");
+                    enhancedClickOnButton(event, 1);
+                    USSDController.callbackInvoke.over(response != null ? response : "");
+                } else {
+                    // Regular final message, just click OK/SEND
+                    Log.d(TAG, "Final message screen. Clicking OK button.");
+                    enhancedClickOnButton(event, 0);
+                    ussd.stopRunning();
+                    USSDController.callbackInvoke.over(response != null ? response : "");
+                }
             } else {
-                // sent option 1
+                // Has input field - this is an interactive dialog
                 Log.d(TAG, "Input field detected. Processing user input.");
                 if (ussd.getSendType() == true)
                     ussd.getCallbackMessage().invoke(event);
-                else USSDController.callbackInvoke.responseInvoke(event);
+                else 
+                    USSDController.callbackInvoke.responseInvoke(event);
             }
+        } else {
+            Log.d(TAG, "Not a USSD widget: " + event.getClassName());
         }
     }
 
     /**
-     * Dumps the node hierarchy for debugging purposes
+     * Enhanced method to detect input fields
      */
+    protected static boolean enhancedNotInputText(AccessibilityEvent event) {
+        if (event == null || event.getSource() == null) return true;
+        
+        // Create a list to store all edittext nodes
+        List<AccessibilityNodeInfo> editTextNodes = new ArrayList<>();
+        
+        // Search more thoroughly
+        findAllEditableNodes(event.getSource(), editTextNodes);
+        
+        Log.d(TAG, "Found " + editTextNodes.size() + " editable nodes in enhanced search");
+        
+        return editTextNodes.isEmpty();
+    }
+    
+    /**
+     * Recursively find all editable nodes
+     */
+    private static void findAllEditableNodes(AccessibilityNodeInfo node, List<AccessibilityNodeInfo> editableNodes) {
+        if (node == null) return;
+        
+        // Check if this node is editable
+        if (isNodeEditable(node)) {
+            editableNodes.add(node);
+            Log.d(TAG, "Found editable node: " + node.getClassName() + ", text: " + node.getText());
+        }
+        
+        // Check children recursively
+        for (int i = 0; i < node.getChildCount(); i++) {
+            findAllEditableNodes(node.getChild(i), editableNodes);
+        }
+    }
+    
+    /**
+     * Checks if a node is editable using multiple methods
+     */
+    private static boolean isNodeEditable(AccessibilityNodeInfo node) {
+        if (node == null) return false;
+        
+        String className = node.getClassName().toString();
+        
+        // Check by class name
+        boolean isEditText = className.equals("android.widget.EditText");
+        
+        // Check by editable flag (API 18+)
+        boolean isEditable = false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+            isEditable = node.isEditable();
+        }
+        
+        // Check if it's focusable and can take text input
+        boolean canTakeInput = node.isFocusable() && 
+                               (node.isEnabled() && 
+                                (node.isClickable() || node.isFocusable()));
+        
+        return isEditText || isEditable || canTakeInput;
+    }
+
+    /**
+     * Enhanced button clicking with better fallback options
+     */
+    protected static void enhancedClickOnButton(AccessibilityEvent event, int index) {
+        Log.d(TAG, "Enhanced click on button at index: " + index);
+        
+        if (event == null || event.getSource() == null) {
+            Log.e(TAG, "Event or source is null");
+            return;
+        }
+        
+        // Get all clickable nodes
+        List<AccessibilityNodeInfo> clickableNodes = new ArrayList<>();
+        findAllClickableNodes(event.getSource(), clickableNodes);
+        
+        Log.d(TAG, "Found " + clickableNodes.size() + " clickable nodes");
+        
+        // Try to click by index if possible
+        if (!clickableNodes.isEmpty() && index < clickableNodes.size()) {
+            boolean success = clickableNodes.get(index).performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            Log.d(TAG, "Clicked on button at index " + index + ": " + (success ? "succeeded" : "failed"));
+            if (success) return;
+        }
+        
+        // Try to find buttons by text
+        String[] buttonTexts = {"ok", "send", "cancel", "next", "continue", "confirm"};
+        for (AccessibilityNodeInfo node : clickableNodes) {
+            if (node.getText() != null) {
+                String nodeText = node.getText().toString().toLowerCase();
+                // Try to find a button with a known label
+                for (String buttonText : buttonTexts) {
+                    if (nodeText.contains(buttonText)) {
+                        boolean success = node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                        Log.d(TAG, "Clicked on button with text '" + nodeText + "': " + (success ? "succeeded" : "failed"));
+                        if (success) return;
+                    }
+                }
+            }
+        }
+        
+        // If still no success, try clicking any button-like node
+        for (AccessibilityNodeInfo node : clickableNodes) {
+            String className = node.getClassName().toString();
+            if (className.contains("Button") || className.contains("button")) {
+                boolean success = node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                Log.d(TAG, "Clicked on button-like node: " + (success ? "succeeded" : "failed"));
+                if (success) return;
+            }
+        }
+        
+        // Last resort: try to click any clickable node
+        if (!clickableNodes.isEmpty()) {
+            // If index is out of bounds, click the first available button
+            int safeIndex = Math.min(index, clickableNodes.size() - 1);
+            boolean success = clickableNodes.get(safeIndex).performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            Log.d(TAG, "Last resort: clicked on clickable node at index " + safeIndex + ": " + (success ? "succeeded" : "failed"));
+        } else {
+            Log.e(TAG, "No clickable nodes found at all");
+        }
+    }
+    
+    /**
+     * Recursively find all clickable nodes
+     */
+    private static void findAllClickableNodes(AccessibilityNodeInfo node, List<AccessibilityNodeInfo> clickableNodes) {
+        if (node == null) return;
+        
+        // Check if this node is clickable
+        if (node.isClickable()) {
+            clickableNodes.add(node);
+            Log.d(TAG, "Found clickable: " + node.getClassName() + ", text: " + node.getText());
+        }
+        
+        // Check children recursively
+        for (int i = 0; i < node.getChildCount(); i++) {
+            findAllClickableNodes(node.getChild(i), clickableNodes);
+        }
+    }
+
+    /**
+     * Improved text input method
+     */
+    public static void send(String text) {
+        Log.d(TAG, "Enhanced send: " + text);
+        enhancedSetTextIntoField(event, text);
+        enhancedClickSendButton(event);
+    }
+    
+    /**
+     * Enhanced method to set text in input fields
+     */
+    private static void enhancedSetTextIntoField(AccessibilityEvent event, String text) {
+        if (event == null || event.getSource() == null || text == null) {
+            Log.e(TAG, "Cannot set text: event, source or text is null");
+            return;
+        }
+        
+        // Find all editable nodes
+        List<AccessibilityNodeInfo> editableNodes = new ArrayList<>();
+        findAllEditableNodes(event.getSource(), editableNodes);
+        
+        if (editableNodes.isEmpty()) {
+            Log.e(TAG, "No editable nodes found to set text");
+            return;
+        }
+        
+        // Try multiple text setting strategies
+        boolean textSet = false;
+        
+        for (AccessibilityNodeInfo node : editableNodes) {
+            // Try direct SET_TEXT action (API 21+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                Bundle arguments = new Bundle();
+                arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text);
+                boolean success = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments);
+                if (success) {
+                    Log.d(TAG, "Successfully set text directly");
+                    textSet = true;
+                    break;
+                }
+            }
+            
+            // Try focus + clipboard paste
+            if (node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)) {
+                Log.d(TAG, "Node focused, trying clipboard paste");
+                
+                // Clear existing text if any
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+                    if (node.getText() != null && !node.getText().toString().isEmpty()) {
+                        node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION);
+                        node.performAction(AccessibilityNodeInfo.ACTION_CUT);
+                    }
+                }
+                
+                // Set clipboard and paste
+                try {
+                    ClipboardManager clipboard = (ClipboardManager) USSDController.INSTANCE
+                            .getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+                    if (clipboard != null) {
+                        clipboard.setPrimaryClip(ClipData.newPlainText("ussd_text", text));
+                        boolean pasteSuccess = node.performAction(AccessibilityNodeInfo.ACTION_PASTE);
+                        if (pasteSuccess) {
+                            Log.d(TAG, "Successfully pasted text from clipboard");
+                            textSet = true;
+                            break;
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error during clipboard paste: " + e.getMessage());
+                }
+            }
+        }
+        
+        if (!textSet) {
+            Log.e(TAG, "Failed to set text using all available methods");
+        }
+    }
+    
+    /**
+     * Enhanced method to click the send button
+     */
+    private static void enhancedClickSendButton(AccessibilityEvent event) {
+        if (event == null || event.getSource() == null) {
+            Log.e(TAG, "Cannot click send: event or source is null");
+            return;
+        }
+        
+        // Find all clickable nodes
+        List<AccessibilityNodeInfo> clickableNodes = new ArrayList<>();
+        findAllClickableNodes(event.getSource(), clickableNodes);
+        
+        // First, try to find buttons with specific text
+        String[] sendButtonTexts = {"send", "next", "continue", "submit", "ok", "confirm"};
+        for (AccessibilityNodeInfo node : clickableNodes) {
+            if (node.getText() != null) {
+                String nodeText = node.getText().toString().toLowerCase();
+                for (String buttonText : sendButtonTexts) {
+                    if (nodeText.contains(buttonText)) {
+                        boolean success = node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                        Log.d(TAG, "Clicked send button with text '" + nodeText + "': " + (success ? "succeeded" : "failed"));
+                        if (success) return;
+                    }
+                }
+            }
+        }
+        
+        // If no text-based button found, try by position (usually the right-most or bottom-most button)
+        if (!clickableNodes.isEmpty()) {
+            // Try the second button if available (often "OK" or "Send")
+            if (clickableNodes.size() > 1) {
+                boolean success = clickableNodes.get(1).performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                Log.d(TAG, "Clicked second button: " + (success ? "succeeded" : "failed"));
+                if (success) return;
+            }
+            
+            // If that fails, try the first button
+            boolean success = clickableNodes.get(0).performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            Log.d(TAG, "Clicked first button as fallback: " + (success ? "succeeded" : "failed"));
+        } else {
+            Log.e(TAG, "No clickable buttons found for send action");
+        }
+    }
+
+    /**
+     * The AccessibilityEvent is instance of USSD Widget class - improved detection
+     */
+    private boolean isUSSDWidget(AccessibilityEvent event) {
+        if (event == null) return false;
+        
+        String className = event.getClassName().toString();
+        String packageName = event.getPackageName() != null ? event.getPackageName().toString() : "";
+        
+        // Check by class name
+        boolean isKnownDialog = (
+                className.equals("amigo.app.AmigoAlertDialog")
+                || className.equals("com.android.phone.MMIDialogActivity")
+                || className.equals("com.android.phone.oppo.settings.LocalAlertDialog")
+                || className.equals("android.app.AlertDialog")
+                || className.equals("com.android.phone.DialerDialog")
+                || className.contains("AlertDialog")
+                || className.contains("Dialog")
+        );
+        
+        // Check by package
+        boolean isPhonePackage = (
+                packageName.contains("phone")
+                || packageName.contains("dialer")
+                || packageName.contains("mmiservice")
+        );
+        
+        // Enhanced detection: also check the content
+        boolean hasUSSDContent = false;
+        if (!event.getText().isEmpty()) {
+            for (CharSequence text : event.getText()) {
+                if (text != null) {
+                    String textStr = text.toString().toLowerCase();
+                    // Common USSD dialog content patterns
+                    if (textStr.contains("ussd") 
+                            || textStr.contains("code") 
+                            || textStr.contains("service")
+                            || textStr.contains("dial")
+                            || textStr.contains("running")) {
+                        hasUSSDContent = true;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Log what we found for debugging
+        Log.d(TAG, "isUSSDWidget check: isKnownDialog=" + isKnownDialog 
+                + ", isPhonePackage=" + isPhonePackage 
+                + ", hasUSSDContent=" + hasUSSDContent);
+        
+        return isKnownDialog || (isPhonePackage && hasUSSDContent);
+    }
+
+    // Keep existing helper methods but update to use enhanced versions
+    
     private void dumpNodeHierarchy(AccessibilityNodeInfo node, int depth) {
         if (node == null) return;
         
@@ -131,233 +441,7 @@ public class USSDServiceKT extends AccessibilityService {
             dumpNodeHierarchy(node.getChild(i), depth + 1);
         }
     }
-
-    /**
-     * Send whatever you want via USSD
-     *
-     * @param text any string
-     */
-    public static void send(String text) {
-        Log.d(TAG, "Sending USSD response: " + text);
-        setTextIntoField(event, text);
-        // Look for the "SEND" button (try both button position and text)
-        clickOnSendButton(event);
-    }
     
-    public static void send2(String text, AccessibilityEvent ev) {
-        Log.d(TAG, "Sending USSD response: " + text);
-        setTextIntoField(ev, text);
-        clickOnSendButton(ev);
-    }
-
-    /**
-     * Finds and clicks on a button with "SEND" text or a button at position 1
-     */
-    private static void clickOnSendButton(AccessibilityEvent event) {
-        boolean buttonClicked = false;
-        AccessibilityNodeInfo sendButton = null;
-        
-        for (AccessibilityNodeInfo leaf : getLeaves(event)) {
-            CharSequence text = leaf.getText();
-            if (leaf.isClickable() && text != null && 
-                (text.toString().equalsIgnoreCase("send") || 
-                 text.toString().equalsIgnoreCase("next") ||
-                 text.toString().equalsIgnoreCase("ok"))) {
-                sendButton = leaf;
-                break;
-            }
-        }
-        
-        // If we found a "SEND" button, click it
-        if (sendButton != null) {
-            boolean success = sendButton.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-            Log.d(TAG, "Clicked on SEND button with text: " + sendButton.getText() + 
-                  ", success: " + success);
-            buttonClicked = success;
-        }
-        
-        // If we didn't find or couldn't click a "SEND" button, try clicking the second button
-        if (!buttonClicked) {
-            Log.d(TAG, "No SEND button found, trying to click second button");
-            clickOnButton(event, 1);
-        }
-    }
-
-    /**
-     * Dismiss dialog by using first button from USSD Dialog
-     */
-    public static void cancel() {
-        Log.d(TAG, "Clicking cancel... ");
-        clickOnButton(event, 0);
-    }
-    
-    public static void cancel2(AccessibilityEvent ev) {
-        Log.d(TAG, "Clicking cancel... ");
-        clickOnButton(ev, 0);
-    }
-
-    /**
-     * set text into input text at USSD widget
-     *
-     * @param event AccessibilityEvent
-     * @param data  Any String
-     */
-    private static void setTextIntoField(AccessibilityEvent event, String data) {
-        Log.d(TAG, "Attempting to set text: '" + data + "'");
-        
-        // Get all edit text fields
-        List<AccessibilityNodeInfo> editTextNodes = new ArrayList<>();
-        for (AccessibilityNodeInfo leaf : getLeaves(event)) {
-            if (leaf.getClassName().toString().equals("android.widget.EditText")) {
-                editTextNodes.add(leaf);
-                Log.d(TAG, "Found EditText: " + leaf.getText());
-            }
-        }
-        
-        // If no edit text fields are explicitly found, look for input fields by role
-        if (editTextNodes.isEmpty()) {
-            for (AccessibilityNodeInfo leaf : getLeaves(event)) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    if (leaf.isEditable()) {
-                        editTextNodes.add(leaf);
-                        Log.d(TAG, "Found editable field: " + leaf.getText());
-                    }
-                }
-            }
-        }
-        
-        // If still no fields found, try to find the parent dialog and look for input fields
-        if (editTextNodes.isEmpty() && event.getSource() != null) {
-            findEditableNodes(event.getSource(), editTextNodes);
-            Log.d(TAG, "Found " + editTextNodes.size() + " editable nodes by recursive search");
-        }
-        
-        boolean textSet = false;
-        
-        // Try to set text in all found edit text fields
-        for (AccessibilityNodeInfo editText : editTextNodes) {
-            // Try direct text setting first
-            Bundle arguments = new Bundle();
-            arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, data);
-            
-            boolean directSetSucceeded = editText.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments);
-            Log.d(TAG, "Direct text setting " + (directSetSucceeded ? "succeeded" : "failed"));
-            
-            if (directSetSucceeded) {
-                textSet = true;
-                break;
-            }
-            
-            // If direct setting failed, try focus then paste
-            if (editText.performAction(AccessibilityNodeInfo.ACTION_FOCUS)) {
-                Log.d(TAG, "Successfully focused on edit text");
-                
-                try {
-                    ClipboardManager clipboardManager = ((ClipboardManager) USSDController
-                            .INSTANCE.getContext().getSystemService(Context.CLIPBOARD_SERVICE));
-                    if (clipboardManager != null) {
-                        clipboardManager.setPrimaryClip(ClipData.newPlainText("text", data));
-                        boolean pasteSucceeded = editText.performAction(AccessibilityNodeInfo.ACTION_PASTE);
-                        Log.d(TAG, "Clipboard paste " + (pasteSucceeded ? "succeeded" : "failed"));
-                        
-                        if (pasteSucceeded) {
-                            textSet = true;
-                            break;
-                        }
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error setting text via clipboard: " + e.getMessage());
-                }
-            }
-        }
-        
-        if (!textSet) {
-            Log.e(TAG, "Failed to set text in USSD dialog after trying all methods");
-        }
-    }
-    
-    /**
-     * Recursively find editable nodes
-     */
-    private static void findEditableNodes(AccessibilityNodeInfo node, List<AccessibilityNodeInfo> editableNodes) {
-        if (node == null) return;
-        
-        if (node.getClassName().toString().equals("android.widget.EditText") ||
-            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && node.isEditable())) {
-            editableNodes.add(node);
-        }
-        
-        for (int i = 0; i < node.getChildCount(); i++) {
-            findEditableNodes(node.getChild(i), editableNodes);
-        }
-    }
-
-    /**
-     * Method evaluate if USSD widget has input text
-     *
-     * @param event AccessibilityEvent
-     * @return boolean has or not input text
-     */
-    protected static boolean notInputText(AccessibilityEvent event) {
-        // First check for EditText nodes
-        for (AccessibilityNodeInfo leaf : getLeaves(event)) {
-            if (leaf.getClassName().toString().equals("android.widget.EditText")) {
-                return false;
-            }
-        }
-        
-        // Then check for editable fields
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            for (AccessibilityNodeInfo leaf : getLeaves(event)) {
-                if (leaf.isEditable()) {
-                    return false;
-                }
-            }
-        }
-        
-        // Finally do a recursive check
-        if (event.getSource() != null) {
-            List<AccessibilityNodeInfo> editableNodes = new ArrayList<>();
-            findEditableNodes(event.getSource(), editableNodes);
-            return editableNodes.isEmpty();
-        }
-        
-        return true;
-    }
-
-    /**
-     * The AccessibilityEvent is instance of USSD Widget class
-     *
-     * @param event AccessibilityEvent
-     * @return boolean AccessibilityEvent is USSD
-     */
-    private boolean isUSSDWidget(AccessibilityEvent event) {
-        String className = event.getClassName().toString();
-        return (className.equals("amigo.app.AmigoAlertDialog")           // Generic Amigo (possibly Gionee)
-                || className.equals("com.android.phone.MMIDialogActivity")
-                || className.equals("com.android.phone.oppo.settings.LocalAlertDialog")
-                || className.equals("android.app.AlertDialog")          // Standard Android dialog
-                || className.equals("com.android.phone.DialerDialog")   // AOSP telephony dialog
-                || className.equals("com.oppo.dialer.AlertDialog")      // Oppo (ColorOS) dialer dialog
-                || className.equals("com.samsung.android.dialer.DialerDialog") // Samsung (One UI)
-                || className.equals("com.miui.dialer.AlertDialog")      // Xiaomi (MIUI)
-                || className.equals("com.vivo.dialer.AlertDialog")       // Vivo (Funtouch OS)
-                || className.equals("com.huawei.dialer.AlertDialog")    // Huawei (EMUI/HarmonyOS)
-                || className.equals("com.google.android.dialer.DialerDialog") // Google (Pixel)
-                || className.equals("com.oneplus.dialer.AlertDialog")   // OnePlus (OxygenOS)
-                || className.equals("com.realme.dialer.AlertDialog")    // Realme (Realme UI)
-                || className.equals("com.motorola.dialer.AlertDialog")  // Motorola
-                || className.equals("com.zte.mifavor.widget.AlertDialog") // ZTE (MiFavor)
-                || className.equals("color.support.v7.app.AlertDialog") // ColorOS support library
-        );
-    }
-
-    /**
-     * The View has a login message into USSD Widget
-     *
-     * @param event AccessibilityEvent
-     * @return boolean USSD Widget has login message
-     */
     private boolean LoginView(AccessibilityEvent event) {
         return isUSSDWidget(event)
                 && !event.getText().isEmpty()
@@ -365,12 +449,6 @@ public class USSDServiceKT extends AccessibilityService {
                    .contains(event.getText().get(0).toString());
     }
 
-    /**
-     * The View has a problem message into USSD Widget
-     *
-     * @param event AccessibilityEvent
-     * @return boolean USSD Widget has problem message
-     */
     protected boolean problemView(AccessibilityEvent event) {
         return isUSSDWidget(event)
                 && !event.getText().isEmpty()
@@ -378,77 +456,21 @@ public class USSDServiceKT extends AccessibilityService {
                    .contains(event.getText().get(0).toString());
     }
 
-    /**
-     * click a button using the index
-     *
-     * @param event AccessibilityEvent
-     * @param index button's index
-     */
+    protected static boolean notInputText(AccessibilityEvent event) {
+        // Delegate to the enhanced version
+        return enhancedNotInputText(event);
+    }
+    
     protected static void clickOnButton(AccessibilityEvent event, int index) {
-        Log.d(TAG, "Attempting to click button at index: " + index);
-        
-        List<AccessibilityNodeInfo> clickableNodes = new ArrayList<>();
-        
-        // Find all clickable nodes
-        for (AccessibilityNodeInfo leaf : getLeaves(event)) {
-            if (leaf.isClickable()) {
-                clickableNodes.add(leaf);
-                Log.d(TAG, "Found clickable node: " + leaf.getClassName() + ", text: " + leaf.getText());
-            }
-        }
-        
-        // If we found clickable nodes and the index is valid
-        if (!clickableNodes.isEmpty() && index < clickableNodes.size()) {
-            boolean success = clickableNodes.get(index).performAction(AccessibilityNodeInfo.ACTION_CLICK);
-            Log.d(TAG, "Clicked on button at index " + index + ": " + (success ? "succeeded" : "failed"));
-        } else {
-            Log.e(TAG, "No clickable buttons found or index out of range. Total clickables: " + clickableNodes.size());
-            
-            // Try finding button by class name as fallback
-            for (AccessibilityNodeInfo leaf : getLeaves(event)) {
-                if (leaf.getClassName().toString().toLowerCase().contains("button")) {
-                    boolean success = leaf.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                    Log.d(TAG, "Fallback: clicked on button by class name: " + (success ? "succeeded" : "failed"));
-                    if (success) return;
-                }
-            }
-        }
+        // Delegate to the enhanced version
+        enhancedClickOnButton(event, index);
     }
 
-    private static List<AccessibilityNodeInfo> getLeaves(AccessibilityEvent event) {
-        List<AccessibilityNodeInfo> leaves = new ArrayList<>();
-        if (event != null && event.getSource() != null) {
-            getLeaves(leaves, event.getSource());
-        }
-        return leaves;
-    }
-
-    private static void getLeaves(List<AccessibilityNodeInfo> leaves, AccessibilityNodeInfo node) {
-        if (node == null) return;
-        
-        if (node.getChildCount() == 0) {
-            leaves.add(node);
-            return;
-        }
-        for (int i = 0; i < node.getChildCount(); i++) {
-            AccessibilityNodeInfo child = node.getChild(i);
-            if (child != null) {
-                getLeaves(leaves, child);
-            }
-        }
-    }
-
-    /**
-     * Active when SO interrupt the application
-     */
     @Override
     public void onInterrupt() {
         Log.d(TAG, "onInterrupt");
     }
 
-    /**
-     * Configure accessibility server from Android Operative System
-     */
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
