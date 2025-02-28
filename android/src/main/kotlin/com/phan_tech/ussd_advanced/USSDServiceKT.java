@@ -6,17 +6,24 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.util.Log;
 import androidx.annotation.RequiresApi;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class USSDServiceKT extends AccessibilityService {
 
     private static AccessibilityEvent event;
     private static final String TAG = "USSDServiceKT";
+    private static final int MAX_WAIT_TIMEOUT = 20000; // 20 seconds in milliseconds
+    private Handler timeoutHandler = new Handler(Looper.getMainLooper());
+    private AtomicBoolean isWaitingForResponse = new AtomicBoolean(false);
+    private Runnable timeoutRunnable;
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
@@ -31,6 +38,13 @@ public class USSDServiceKT extends AccessibilityService {
             return;
         } else {
             Log.d(TAG, "USSDController.INSTANCE running...");
+        }
+        
+        // If we were waiting for a response and received one, cancel the timeout
+        if (isWaitingForResponse.get()) {
+            timeoutHandler.removeCallbacks(timeoutRunnable);
+            isWaitingForResponse.set(false);
+            Log.d(TAG, "Cancelling timeout as we received an event");
         }
         
         String response = null;
@@ -69,6 +83,40 @@ public class USSDServiceKT extends AccessibilityService {
             boolean hasInputField = !enhancedNotInputText(event);
             Log.d(TAG, "Has input field: " + hasInputField);
             
+            // Get all clickable nodes to check if this dialog has buttons
+            List<AccessibilityNodeInfo> clickableNodes = new ArrayList<>();
+            findAllClickableNodes(event.getSource(), clickableNodes);
+            
+            // Check if this is a "loading" or "processing" dialog with no buttons
+            boolean isLoadingDialog = isLoadingDialog(event);
+            boolean hasNoButtons = clickableNodes.isEmpty();
+            
+            if (isLoadingDialog || hasNoButtons) {
+                Log.d(TAG, "Detected a loading dialog or dialog with no buttons. Setting timeout for " + MAX_WAIT_TIMEOUT + "ms");
+                
+                // Set up a timeout to continue if we don't get a response in MAX_WAIT_TIMEOUT milliseconds
+                isWaitingForResponse.set(true);
+                timeoutRunnable = new Runnable() {
+                    @Override
+                    public void run() {
+                        Log.d(TAG, "Timeout reached waiting for USSD response");
+                        isWaitingForResponse.set(false);
+                        
+                        // If we're still waiting, assume this is the final response
+                        if (ussd.isRunning()) {
+                            ussd.stopRunning();
+                            // Return whatever response we have
+                            USSDController.callbackInvoke.over(response != null ? response : "Timeout waiting for response");
+                        }
+                    }
+                };
+                
+                timeoutHandler.postDelayed(timeoutRunnable, MAX_WAIT_TIMEOUT);
+                
+                // Continue processing other events while waiting
+                return;
+            }
+            
             if (!hasInputField) {
                 // no input fields - this is likely a final message or menu-only screen
                 Log.d(TAG, "No input field detected. Processing as menu or final message.");
@@ -101,6 +149,44 @@ public class USSDServiceKT extends AccessibilityService {
         } else {
             Log.d(TAG, "Not a USSD widget: " + event.getClassName());
         }
+    }
+
+    /**
+     * Check if the dialog appears to be a loading/processing dialog
+     */
+    private boolean isLoadingDialog(AccessibilityEvent event) {
+        if (event == null || event.getSource() == null) return false;
+        
+        // Check text content for loading indicators
+        List<CharSequence> text = event.getText();
+        if (text != null && !text.isEmpty()) {
+            for (CharSequence item : text) {
+                if (item != null) {
+                    String textStr = item.toString().toLowerCase();
+                    if (textStr.contains("dialing") || 
+                        textStr.contains("running") || 
+                        textStr.contains("processing") || 
+                        textStr.contains("loading") || 
+                        textStr.contains("please wait") || 
+                        textStr.contains("connecting") ||
+                        textStr.contains("ussd code") ||
+                        textStr.contains("initializing")) {
+                        Log.d(TAG, "Loading dialog detected by text: " + textStr);
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        // Check if the dialog has no clickable elements
+        List<AccessibilityNodeInfo> clickableNodes = new ArrayList<>();
+        findAllClickableNodes(event.getSource(), clickableNodes);
+        if (clickableNodes.isEmpty()) {
+            Log.d(TAG, "Loading dialog detected (no clickable elements)");
+            return true;
+        }
+        
+        return false;
     }
 
     /**
@@ -438,7 +524,9 @@ public class USSDServiceKT extends AccessibilityService {
                             || textStr.contains("code") 
                             || textStr.contains("service")
                             || textStr.contains("dial")
-                            || textStr.contains("running")) {
+                            || textStr.contains("running")
+                            || textStr.contains("dialing")
+                            || textStr.contains("processing")) {
                         hasUSSDContent = true;
                         break;
                     }
@@ -533,5 +621,14 @@ public class USSDServiceKT extends AccessibilityService {
     protected void onServiceConnected() {
         super.onServiceConnected();
         Log.d(TAG, "onServiceConnected");
+    }
+    
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        // Clean up resources
+        if (timeoutHandler != null && timeoutRunnable != null) {
+            timeoutHandler.removeCallbacks(timeoutRunnable);
+        }
     }
 }
