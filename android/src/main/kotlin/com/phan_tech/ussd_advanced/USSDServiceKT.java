@@ -63,7 +63,7 @@ public class USSDServiceKT extends AccessibilityService {
 
         // Enhanced detection algorithm
         if (isUSSDWidget(event)) {
-            Log.d(TAG, "USSD Widget detected.");
+            Log.d(TAG, "----- USSD Widget detected. -----");
             
             // Check for input field more thoroughly
             boolean hasInputField = !enhancedNotInputText(event);

@@ -21,6 +21,7 @@ import android.telecom.TelecomManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityManager
 import androidx.annotation.RequiresApi
+import com.phan_tech.ussd_advanced.USSDServiceKT
 
 /**
  * @author Romell Dominguez
