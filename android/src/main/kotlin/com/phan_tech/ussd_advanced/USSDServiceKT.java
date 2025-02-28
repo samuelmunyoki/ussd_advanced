@@ -25,6 +25,7 @@ public class USSDServiceKT extends AccessibilityService {
     private AtomicBoolean isWaitingForResponse = new AtomicBoolean(false);
     private Runnable timeoutRunnable;
 
+
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         USSDServiceKT.event = event;
@@ -47,7 +48,7 @@ public class USSDServiceKT extends AccessibilityService {
             Log.d(TAG, "Cancelling timeout as we received an event");
         }
         
-        String response = null;
+        final String response;
 
         // If the event has some text.
         if(!event.getText().isEmpty()) {
@@ -69,6 +70,8 @@ public class USSDServiceKT extends AccessibilityService {
             response = sb.toString().trim();
             
             Log.d(TAG, "Processed response: " + response);
+        } else {
+            response = null;
         }
 
         // Print all nodes for debugging
