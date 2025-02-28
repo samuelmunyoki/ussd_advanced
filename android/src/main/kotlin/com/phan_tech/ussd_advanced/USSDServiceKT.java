@@ -243,14 +243,46 @@ public class USSDServiceKT extends AccessibilityService {
     }
 
     /**
-     * Improved text input method
+     * Send whatever you want via USSD with enhanced implementation
+     *
+     * @param text any string
      */
     public static void send(String text) {
         Log.d(TAG, "Enhanced send: " + text);
         enhancedSetTextIntoField(event, text);
         enhancedClickSendButton(event);
     }
-    
+
+    /**
+     * Send text via USSD with custom event parameter
+     *
+     * @param text any string
+     * @param ev custom AccessibilityEvent
+     */
+    public static void send2(String text, AccessibilityEvent ev) {
+        Log.d(TAG, "Enhanced send2 with custom event: " + text);
+        enhancedSetTextIntoField(ev, text);
+        enhancedClickSendButton(ev);
+    }
+
+    /**
+     * Dismiss dialog by using first button from USSD Dialog
+     */
+    public static void cancel() {
+        Log.d(TAG, "Enhanced cancel");
+        enhancedClickOnButton(event, 0);
+    }
+
+    /**
+     * Dismiss dialog using custom event parameter
+     *
+     * @param ev custom AccessibilityEvent
+     */
+    public static void cancel2(AccessibilityEvent ev) {
+        Log.d(TAG, "Enhanced cancel2 with custom event");
+        enhancedClickOnButton(ev, 0);
+    }
+
     /**
      * Enhanced method to set text in input fields
      */
@@ -378,9 +410,11 @@ public class USSDServiceKT extends AccessibilityService {
         // Check by class name
         boolean isKnownDialog = (
                 className.equals("amigo.app.AmigoAlertDialog")
+                || className.equals("android.app.AlertDialog")
                 || className.equals("com.android.phone.MMIDialogActivity")
                 || className.equals("com.android.phone.oppo.settings.LocalAlertDialog")
-                || className.equals("android.app.AlertDialog")
+                || className.equals("com.zte.mifavor.widget.AlertDialog")
+                || className.equals("color.support.v7.app.AlertDialog")
                 || className.equals("com.android.phone.DialerDialog")
                 || className.contains("AlertDialog")
                 || className.contains("Dialog")
@@ -420,7 +454,7 @@ public class USSDServiceKT extends AccessibilityService {
         return isKnownDialog || (isPhonePackage && hasUSSDContent);
     }
 
-    // Keep existing helper methods but update to use enhanced versions
+    // Helper methods
     
     private void dumpNodeHierarchy(AccessibilityNodeInfo node, int depth) {
         if (node == null) return;
@@ -461,9 +495,33 @@ public class USSDServiceKT extends AccessibilityService {
         return enhancedNotInputText(event);
     }
     
+    // Legacy methods for backward compatibility
+    private static void setTextIntoField(AccessibilityEvent event, String data) {
+        enhancedSetTextIntoField(event, data);
+    }
+    
     protected static void clickOnButton(AccessibilityEvent event, int index) {
         // Delegate to the enhanced version
         enhancedClickOnButton(event, index);
+    }
+
+    private static List<AccessibilityNodeInfo> getLeaves(AccessibilityEvent event) {
+        List<AccessibilityNodeInfo> leaves = new ArrayList<>();
+        if (event != null && event.getSource() != null) {
+            getLeaves(leaves, event.getSource());
+        }
+        return leaves;
+    }
+
+    private static void getLeaves(List<AccessibilityNodeInfo> leaves, AccessibilityNodeInfo node) {
+        if (node == null) return;
+        if (node.getChildCount() == 0) {
+            leaves.add(node);
+            return;
+        }
+        for (int i = 0; i < node.getChildCount(); i++) {
+            getLeaves(leaves, node.getChild(i));
+        }
     }
 
     @Override

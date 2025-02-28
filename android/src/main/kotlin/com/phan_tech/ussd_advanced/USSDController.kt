@@ -21,7 +21,6 @@ import android.telecom.TelecomManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityManager
 import androidx.annotation.RequiresApi
-import com.phan_tech.ussd_advanced.USSDServiceKT
 
 /**
  * @author Romell Dominguez
@@ -111,7 +110,6 @@ object USSDController : USSDInterface, USSDApi {
      */
     @RequiresApi(Build.VERSION_CODES.M)
     @SuppressLint("MissingPermission")
-    // Checks if accessibility is enabled and dials a ussd
     override fun callUSSDInvoke(
         context: Context, ussdPhoneNumber: String, simSlot: Int,
         callbackInvoke: CallbackInvoke
@@ -175,11 +173,9 @@ object USSDController : USSDInterface, USSDApi {
      * ```
      * @param[text] String will be sent by EditText
      */
-    // override fun sendData(text: String) = USSDServiceKT.send(text)
-    // override fun sendData2(text: String, event: AccessibilityEvent) =
-    //     USSDServiceKT.send2(text, event)
     override fun sendData(text: String) = USSDServiceKT.send(text)
-    override fun sendData2(text: String, event: AccessibilityEvent) = USSDServiceKT.send2(text, event) { /* No-op callback */ }
+    override fun sendData2(text: String, event: AccessibilityEvent) =
+        USSDServiceKT.send2(text, event)
 
 
     override fun stopRunning() {
@@ -201,7 +197,7 @@ object USSDController : USSDInterface, USSDApi {
     override fun send(text: String, callbackMessage: (AccessibilityEvent) -> Unit) {
         this.callbackMessage = callbackMessage
         sendType = true
-        USSDServiceKT.send(text)
+        ussdInterface?.sendData(text)
     }
 
     override fun send2(
@@ -211,10 +207,9 @@ object USSDController : USSDInterface, USSDApi {
     ) {
         this.callbackMessage = callbackMessage
         sendType = true
-        USSDServiceKT.send2(text, event) { evt ->
-            callbackMessage(evt)
-        }
+        ussdInterface?.sendData2(text, event)
     }
+
     /**
      * Cancel the USSD flow in processing
      *
@@ -227,8 +222,9 @@ object USSDController : USSDInterface, USSDApi {
      * @see callUSSDInvoke
      *
      */
-   override fun cancel() = USSDServiceKT.cancel()
+    override fun cancel() = USSDServiceKT.cancel()
     override fun cancel2(event: AccessibilityEvent) = USSDServiceKT.cancel2(event)
+
     /**
      * Invoke class to comunicate messages between USSD and App
      */
