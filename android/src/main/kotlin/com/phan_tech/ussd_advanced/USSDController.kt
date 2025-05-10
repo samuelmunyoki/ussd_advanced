@@ -45,14 +45,12 @@ object USSDController : USSDInterface, USSDApi {
 
     // lateinit var context: Context
     //     private set
-    lateinit var context: Context
+    var context: Context? = null
         private set
-        get() {
-            if (!::context.isInitialized) {
-                throw IllegalStateException("USSDController context not initialized")
-            }
-            return field
-        }
+
+    fun ensureContextInitialized(): Boolean {
+        return context != null
+    }
 
     var map: HashMap<String, List<String>> = mapM
         private set
