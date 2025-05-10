@@ -43,8 +43,16 @@ object USSDController : USSDInterface, USSDApi {
             "Subscription", "phone", "com.android.phone.DialingMode", "simSlot", "slot_id",
             "simId", "simnum", "phone_type", "slotId", "slotIdx")
 
+    // lateinit var context: Context
+    //     private set
     lateinit var context: Context
         private set
+        get() {
+            if (!::context.isInitialized) {
+                throw IllegalStateException("USSDController context not initialized")
+            }
+            return field
+        }
 
     var map: HashMap<String, List<String>> = mapM
         private set
