@@ -39,48 +39,97 @@ public class USSDServiceKT extends AccessibilityService {
      *
      * @param event AccessibilityEvent
      */
+    // @Override
+    // public void onAccessibilityEvent(AccessibilityEvent event) {
+    //     USSDServiceKT.event = event;
+    //     USSDController ussd = USSDController.INSTANCE;
+        
+    //     String response = null;
+    //     if(!event.getText().isEmpty()) {
+    //         List<CharSequence> res = event.getText();
+    //         res.remove("SEND");
+    //         res.remove("CANCEL");
+    //         res.remove("Send");
+    //         res.remove("Cancel");
+    //         response = String.join("\n", res);
+    //     }
+
+    //     if (isUSSDWidget(event)) {
+    //         if (LoginView(event) && notInputText(event)) {
+    //             // first view or logView
+    //             clickOnButton(event, 0);
+    //             ussd.stopRunning();
+    //             if (response != null && !response.isEmpty()) {
+    //                 USSDController.callbackInvoke.over(response);
+    //             }
+    //         } else if (problemView(event) || LoginView(event)) {
+    //             // deal down
+    //             clickOnButton(event, 1);
+    //             if (response != null && !response.isEmpty()) {
+    //                 USSDController.callbackInvoke.over(response);
+    //             }
+    //         } else if (notInputText(event)) {
+    //             // no input panels - LAST MESSAGE
+    //             clickOnButton(event, 0);
+    //             ussd.stopRunning();
+    //             if (response != null && !response.isEmpty()) {
+    //                 USSDController.callbackInvoke.over(response);
+    //             }
+    //         } else {
+    //             // has input panel
+    //             if (ussd.getSendType()) {
+    //                 ussd.getCallbackMessage().invoke(event);
+    //             } else {
+    //                 USSDController.callbackInvoke.responseInvoke(event);
+    //             }
+    //         }
+    //     }
+    // }
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         USSDServiceKT.event = event;
         USSDController ussd = USSDController.INSTANCE;
         
+        // Always process the event text
         String response = null;
         if(!event.getText().isEmpty()) {
-            List<CharSequence> res = event.getText();
-            res.remove("SEND");
-            res.remove("CANCEL");
-            res.remove("Send");
-            res.remove("Cancel");
+            List<CharSequence> res = new ArrayList<>(event.getText());
+            // Filter out common button texts but keep all other content
+            res.removeIf(text -> 
+                text.toString().equalsIgnoreCase("SEND") || 
+                text.toString().equalsIgnoreCase("CANCEL") ||
+                text.toString().equalsIgnoreCase("OK")
+            );
             response = String.join("\n", res);
         }
 
         if (isUSSDWidget(event)) {
             if (LoginView(event) && notInputText(event)) {
-                // first view or logView
+                // First view or loading view
                 clickOnButton(event, 0);
                 ussd.stopRunning();
                 if (response != null && !response.isEmpty()) {
                     USSDController.callbackInvoke.over(response);
                 }
-            } else if (problemView(event) || LoginView(event)) {
-                // deal down
+            } else if (problemView(event)) {
+                // Problem view - send response but don't stop session
                 clickOnButton(event, 1);
                 if (response != null && !response.isEmpty()) {
-                    USSDController.callbackInvoke.over(response);
+                    USSDController.callbackInvoke.responseInvoke(response);
                 }
             } else if (notInputText(event)) {
-                // no input panels - LAST MESSAGE
+                // Final message view with no input
                 clickOnButton(event, 0);
                 ussd.stopRunning();
                 if (response != null && !response.isEmpty()) {
                     USSDController.callbackInvoke.over(response);
                 }
             } else {
-                // has input panel
+                // View with input panel
                 if (ussd.getSendType()) {
                     ussd.getCallbackMessage().invoke(event);
                 } else {
-                    USSDController.callbackInvoke.responseInvoke(event);
+                    USSDController.callbackInvoke.responseInvoke(response);
                 }
             }
         }

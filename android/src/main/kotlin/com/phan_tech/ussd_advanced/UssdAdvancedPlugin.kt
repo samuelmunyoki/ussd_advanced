@@ -391,48 +391,86 @@ class UssdAdvancedPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Basic
   //     }
   //   })
   // }
-  private fun multisessionUssd(ussdCode:String, subscriptionId:Int, @NonNull result: Result){
-    val act = activity ?: return
+//   private fun multisessionUssd(ussdCode:String, subscriptionId:Int, @NonNull result: Result){
+//     val act = activity ?: return
     
-    var slot = subscriptionId
-    if(subscriptionId == -1){
-        slot = 0
+//     var slot = subscriptionId
+//     if(subscriptionId == -1){
+//         slot = 0
+//     }
+
+//     ussdApi.callUSSDInvoke(act, ussdCode, slot, object : USSDController.CallbackInvoke {
+//         private var responseSent = false
+
+//         override fun responseInvoke(ev: AccessibilityEvent) {
+//             if (!responseSent) {
+//                 event = AccessibilityEvent.obtain(ev)
+//                 setListener()
+//                 try {
+//                     if(ev.text.isNotEmpty()) {
+//                         result.success(java.lang.String.join("\n", ev.text))
+//                         responseSent = true
+//                     }
+//                 } catch (e: Exception) {
+//                     if (!responseSent) {
+//                         result.success(null)
+//                         responseSent = true
+//                     }
+//                 }
+//             }
+//         }
+
+//         override fun over(message: String) {
+//             if (!responseSent) {
+//                 try {
+//                     basicMessageChannel.send(message)
+//                     result.success(message)
+//                     basicMessageChannel.setMessageHandler(null)
+//                     responseSent = true
+//                 } catch (e: Exception) {
+//                     if (!responseSent) {
+//                         result.success(null)
+//                         responseSent = true
+//                     }
+//                 }
+//             }
+//         }
+//     })
+// }
+private fun multisessionUssd(ussdCode:String, subscriptionId:Int, @NonNull result: Result) {
+    val act = activity ?: run {
+        result.error("NO_ACTIVITY", "Activity is not available", null)
+        return
     }
+    
+    var slot = if (subscriptionId == -1) 0 else subscriptionId
+    val responseCollector = StringBuilder()
 
     ussdApi.callUSSDInvoke(act, ussdCode, slot, object : USSDController.CallbackInvoke {
-        private var responseSent = false
-
-        override fun responseInvoke(ev: AccessibilityEvent) {
-            if (!responseSent) {
-                event = AccessibilityEvent.obtain(ev)
-                setListener()
-                try {
-                    if(ev.text.isNotEmpty()) {
-                        result.success(java.lang.String.join("\n", ev.text))
-                        responseSent = true
-                    }
-                } catch (e: Exception) {
-                    if (!responseSent) {
-                        result.success(null)
-                        responseSent = true
-                    }
-                }
+        override fun responseInvoke(message: String) {
+            // For intermediate responses
+            if (message.isNotBlank()) {
+                responseCollector.append(message).append("\n")
+                basicMessageChannel.send(message)
             }
         }
 
         override fun over(message: String) {
-            if (!responseSent) {
-                try {
-                    basicMessageChannel.send(message)
-                    result.success(message)
-                    basicMessageChannel.setMessageHandler(null)
-                    responseSent = true
-                } catch (e: Exception) {
-                    if (!responseSent) {
-                        result.success(null)
-                        responseSent = true
-                    }
+            // For final response
+            try {
+                if (message.isNotBlank()) {
+                    responseCollector.append(message)
                 }
+                
+                val fullResponse = responseCollector.toString().trim()
+                if (fullResponse.isNotEmpty()) {
+                    result.success(fullResponse)
+                } else {
+                    result.success(null)
+                }
+                basicMessageChannel.setMessageHandler(null)
+            } catch (e: Exception) {
+                result.error("RESPONSE_ERROR", "Failed to process USSD response", e.message)
             }
         }
     })
