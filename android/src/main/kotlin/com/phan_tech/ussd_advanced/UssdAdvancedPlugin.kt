@@ -356,41 +356,87 @@ class UssdAdvancedPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Basic
     }
   }
 
+  // private fun multisessionUssd(ussdCode:String, subscriptionId:Int, @NonNull result: Result){
+  //   val act = activity ?: return
+    
+  //   var slot = subscriptionId
+  //   if(subscriptionId == -1){
+  //     slot = 0
+  //   }
+
+  //   ussdApi.callUSSDInvoke(act, ussdCode, slot, object : USSDController.CallbackInvoke {
+  //     override fun responseInvoke(ev: AccessibilityEvent) {
+  //       event = AccessibilityEvent.obtain(ev)
+  //       setListener()
+
+  //       try {
+  //         if(ev.text.isNotEmpty()) {
+  //           result.success(java.lang.String.join("\n", ev.text))
+  //         } else {
+  //           result.success(null)
+  //         }
+  //       } catch (e: Exception) {
+  //         result.success(null)
+  //       }
+  //     }
+
+  //     override fun over(message: String) {
+  //       try {
+  //         basicMessageChannel.send(message)
+  //         result.success(message)
+  //         basicMessageChannel.setMessageHandler(null)
+  //       } catch (e: Exception) {
+  //         result.success(null)
+  //       }
+  //     }
+  //   })
+  // }
   private fun multisessionUssd(ussdCode:String, subscriptionId:Int, @NonNull result: Result){
     val act = activity ?: return
     
     var slot = subscriptionId
     if(subscriptionId == -1){
-      slot = 0
+        slot = 0
     }
 
     ussdApi.callUSSDInvoke(act, ussdCode, slot, object : USSDController.CallbackInvoke {
-      override fun responseInvoke(ev: AccessibilityEvent) {
-        event = AccessibilityEvent.obtain(ev)
-        setListener()
+        private var responseSent = false
 
-        try {
-          if(ev.text.isNotEmpty()) {
-            result.success(java.lang.String.join("\n", ev.text))
-          } else {
-            result.success(null)
-          }
-        } catch (e: Exception) {
-          result.success(null)
+        override fun responseInvoke(ev: AccessibilityEvent) {
+            if (!responseSent) {
+                event = AccessibilityEvent.obtain(ev)
+                setListener()
+                try {
+                    if(ev.text.isNotEmpty()) {
+                        result.success(java.lang.String.join("\n", ev.text))
+                        responseSent = true
+                    }
+                } catch (e: Exception) {
+                    if (!responseSent) {
+                        result.success(null)
+                        responseSent = true
+                    }
+                }
+            }
         }
-      }
 
-      override fun over(message: String) {
-        try {
-          basicMessageChannel.send(message)
-          result.success(message)
-          basicMessageChannel.setMessageHandler(null)
-        } catch (e: Exception) {
-          result.success(null)
+        override fun over(message: String) {
+            if (!responseSent) {
+                try {
+                    basicMessageChannel.send(message)
+                    result.success(message)
+                    basicMessageChannel.setMessageHandler(null)
+                    responseSent = true
+                } catch (e: Exception) {
+                    if (!responseSent) {
+                        result.success(null)
+                        responseSent = true
+                    }
+                }
+            }
         }
-      }
     })
-  }
+}
 
   private fun multisessionUssdCancel(){
     if(event != null){

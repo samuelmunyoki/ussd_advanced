@@ -39,53 +39,52 @@ public class USSDServiceKT extends AccessibilityService {
      *
      * @param event AccessibilityEvent
      */
-@Override
-public void onAccessibilityEvent(AccessibilityEvent event) {
-    USSDServiceKT.event = event;
-    USSDController ussd = USSDController.INSTANCE;
-    
-    // Always process the event text if it's a USSD widget
-    String response = null;
-    if(!event.getText().isEmpty()) {
-        List<CharSequence> res = event.getText();
-        res.remove("SEND");
-        res.remove("CANCEL");
-        res.remove("Send");
-        res.remove("Cancel");
-        response = String.join("\n", res);
-    }
+    @Override
+    public void onAccessibilityEvent(AccessibilityEvent event) {
+        USSDServiceKT.event = event;
+        USSDController ussd = USSDController.INSTANCE;
+        
+        String response = null;
+        if(!event.getText().isEmpty()) {
+            List<CharSequence> res = event.getText();
+            res.remove("SEND");
+            res.remove("CANCEL");
+            res.remove("Send");
+            res.remove("Cancel");
+            response = String.join("\n", res);
+        }
 
-    if (isUSSDWidget(event)) {
-        if (LoginView(event) && notInputText(event)) {
-            // first view or logView
-            clickOnButton(event, 0);
-            ussd.stopRunning();
-            if (response != null) {
-                USSDController.callbackInvoke.over(response);
-            }
-        } else if (problemView(event) || LoginView(event)) {
-            // deal down
-            clickOnButton(event, 1);
-            if (response != null) {
-                USSDController.callbackInvoke.over(response);
-            }
-        } else if (notInputText(event)) {
-            // no input panels - LAST MESSAGE
-            clickOnButton(event, 0);
-            ussd.stopRunning();
-            if (response != null) {
-                USSDController.callbackInvoke.over(response);
-            }
-        } else {
-            // has input panel
-            if (ussd.getSendType()) {
-                ussd.getCallbackMessage().invoke(event);
+        if (isUSSDWidget(event)) {
+            if (LoginView(event) && notInputText(event)) {
+                // first view or logView
+                clickOnButton(event, 0);
+                ussd.stopRunning();
+                if (response != null && !response.isEmpty()) {
+                    USSDController.callbackInvoke.over(response);
+                }
+            } else if (problemView(event) || LoginView(event)) {
+                // deal down
+                clickOnButton(event, 1);
+                if (response != null && !response.isEmpty()) {
+                    USSDController.callbackInvoke.over(response);
+                }
+            } else if (notInputText(event)) {
+                // no input panels - LAST MESSAGE
+                clickOnButton(event, 0);
+                ussd.stopRunning();
+                if (response != null && !response.isEmpty()) {
+                    USSDController.callbackInvoke.over(response);
+                }
             } else {
-                USSDController.callbackInvoke.responseInvoke(event);
+                // has input panel
+                if (ussd.getSendType()) {
+                    ussd.getCallbackMessage().invoke(event);
+                } else {
+                    USSDController.callbackInvoke.responseInvoke(event);
+                }
             }
         }
     }
-}
 
     /**
      * Send whatever you want via USSD
