@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.provider.Settings
 import android.telecom.TelecomManager
 import android.telephony.TelephonyManager
@@ -90,7 +91,7 @@ class UssdAdvancedPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Basic
         
         // Update USSDController context
         USSDController.context = context!!
-        Log.d(TAG, "onAttachedToActivity: Context re-initialized in USSDController")
+        // Log.d(TAG, "onAttachedToActivity: Context re-initialized in USSDController")
     }
 }
 
@@ -118,7 +119,7 @@ class UssdAdvancedPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Basic
         
         // Always update USSDController context on reattachment
         USSDController.context = context!!
-        Log.d(TAG, "onReattachedToActivityForConfigChanges: Context updated in USSDController")
+        // Log.d(TAG, "onReattachedToActivityForConfigChanges: Context updated in USSDController")
     }
 }
 
@@ -149,7 +150,7 @@ class UssdAdvancedPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Basic
         context = activity!!.applicationContext
         if (context != null) {
             USSDController.context = context!!
-            Log.d(TAG, "onMethodCall: Context re-initialized from activity")
+            // Log.d(TAG, "onMethodCall: Context re-initialized from activity")
         }
     }
     
