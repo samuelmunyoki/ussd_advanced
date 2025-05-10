@@ -24,4 +24,5 @@ interface USSDInterface {
     fun sendData(text: String)
     fun sendData2(text: String, event: AccessibilityEvent)
     fun stopRunning()
+    fun onResponseReceived(response: String)
 }
